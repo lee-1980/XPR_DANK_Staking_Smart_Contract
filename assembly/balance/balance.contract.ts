@@ -149,13 +149,15 @@ export class BalanceContract extends AllowContract {
         substractTokens(account, tokens)
         // Delete table if no tokens
         // Update table if token found
-        this.updateReward(account)
+        this.updateRewards()
 
         if (account.tokens.length == 0) {
             this.balancesTable.remove(account);
         } else {
             this.balancesTable.update(account, SAME_PAYER)
         }
+
+        this.updateLPs()
     }
 
     /**
@@ -176,14 +178,30 @@ export class BalanceContract extends AllowContract {
 
         addTokens(account, tokens)
 
-        this.updateReward(account)
+        this.updateRewards()
         // Upsert table
         this.balancesTable.set(account, ramPayer)
 
-        this.updateLP()
+        this.updateLPs()
+    }
+    updateRewards() : void {
+        if (!this.balancesTable.isEmpty()) {
+
+            let account = this.balancesTable.first()
+            if(!account) return
+
+            while(this.balancesTable.existsValue(account)){
+                if(!account) break;
+
+                this.updateReward(account)
+                this.balancesTable.set(account, this.contract)
+                account = this.balancesTable.next(account)
+                if(!account) break;
+            }
+        }
     }
 
-    updateLP(): void {
+    updateLPs(): void {
         if (!this.balancesTable.isEmpty()) {
 
             let account = this.balancesTable.first()
@@ -248,7 +266,6 @@ export class BalanceContract extends AllowContract {
 
     updateReward(account: Balance): void {
 
-
         let newRewardExtendedAsset = this.calculateAvailableRewards(account)
 
         //----- Update the Rewards
@@ -274,7 +291,7 @@ export class BalanceContract extends AllowContract {
 
         //----- Get the current Reward Token Amount staked inside contract
         const rewardTokenTotalAmount = getBalance(rewardTokenContract, this.contract, rewardTokenSymbol)
-        
+
         //----- Get the depositToken
         const depositToken = this.allowGlobalsSingleton.get().depositToken
         const depositTokenSymbol = depositToken.sym

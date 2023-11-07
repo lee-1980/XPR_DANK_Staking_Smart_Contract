@@ -71,18 +71,18 @@ const main = async () => {
     console.log(await getBalanceRows()[1])
     console.log(await getBalanceRows()[2])
 
-    // await wait(9000)
-    //
-    // now = new Date();
-    // point = TimePointSec.fromMilliseconds(now.getTime());
-    // blockchain.setTime(point)
-    //
-    // await xtokensContract.actions.transfer(['trader', 'balance', '20.000000 XUSDC', 'deposit']).send('trader@active')
-    // // await xtokensContract.actions.transfer(['artist', 'balance', '20.000000 XUSDC', 'deposit']).send('artist@active')
-    // await balanceContract.actions.withdraw(['artist', [{ "quantity": "20.000000 XUSDC", "contract": "xtokens" }]]).send('artist@active')
-    // console.log(await getBalanceRows()[0])
-    // console.log(await getBalanceRows()[1])
-    // console.log(await getBalanceRows()[2])
+    await wait(9000)
+
+    now = new Date();
+    point = TimePointSec.fromMilliseconds(now.getTime());
+    blockchain.setTime(point)
+
+    await xtokensContract.actions.transfer(['trader', 'balance', '20.000000 XUSDC', 'deposit']).send('trader@active')
+    // await xtokensContract.actions.transfer(['artist', 'balance', '20.000000 XUSDC', 'deposit']).send('artist@active')
+    await balanceContract.actions.withdraw(['artist', [{ "quantity": "20.000000 XUSDC", "contract": "xtokens" }]]).send('artist@active')
+    console.log(await getBalanceRows()[0])
+    console.log(await getBalanceRows()[1])
+    console.log(await getBalanceRows()[2])
 
     await wait(9000)
 
