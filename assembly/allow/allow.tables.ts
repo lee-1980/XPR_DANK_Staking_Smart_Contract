@@ -1,5 +1,6 @@
-import { Name, Table, U128, ExtendedSymbol, EMPTY_NAME,Symbol } from "..";
+import { Name, Table, U128, ExtendedSymbol, EMPTY_NAME,Symbol , ExtendedAsset} from "..";
 import { extendedSymbolToU128, U128ToExtSym } from "./allow.utils";
+
 
 
 // scope: contract
@@ -13,7 +14,8 @@ export class AllowGlobals extends Table {
         public isContractsEnabled: boolean = true,
         public depositToken: ExtendedSymbol = new ExtendedSymbol(new Symbol("XPR", 4), Name.fromString("eosio.token")),
         public rewardToken: ExtendedSymbol = new ExtendedSymbol(new Symbol("XPR", 4), Name.fromString("eosio.token")),
-        public percentage: f32 = 0
+        public totalRewards: ExtendedAsset[] = [],
+        public percentage: f32 = 0,
     ) {
         super();
     }

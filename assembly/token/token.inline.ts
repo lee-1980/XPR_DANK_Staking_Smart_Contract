@@ -44,8 +44,17 @@ export function getSupply(tokenContractAccount: Name, sym: Symbol): Asset {
 
 export function getBalance(tokenContractAccount: Name, owner: Name, sym: Symbol): Asset {
     const acnts = new TableStore<Account>(tokenContractAccount, owner)
-    const ac = acnts.requireGet(sym.code(), "no balance object found");
-    return ac.balance;
+
+    const ac = acnts.get(sym.code());
+
+    if(ac != null) {
+        return ac.balance;
+    }
+    else{
+        return new Asset(
+            0, sym
+        )
+    }
 }
 
 

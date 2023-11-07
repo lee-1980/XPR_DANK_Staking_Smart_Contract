@@ -1,5 +1,5 @@
 import { check, ExtendedAsset, Name } from ".."
-import { Balance } from "./balance.tables";
+import {Balance, LP} from "./balance.tables";
 
 /**
  * Find the index of an extended asset in an array of extended assets
@@ -16,6 +16,18 @@ export function findIndexOfExtendedAsset (tokens: ExtendedAsset[], token: Extend
         }
     }
     return tokenIndex
+}
+
+
+export function findIndexOfSymbolString (LPs : LP[], LP: string): i32 {
+    let LPIndex = -1
+    for (let j = 0; j < LPs.length; j++) {
+        if (LPs[j].token == LP) {
+            LPIndex = j
+            break;
+        }
+    }
+    return LPIndex
 }
 
 

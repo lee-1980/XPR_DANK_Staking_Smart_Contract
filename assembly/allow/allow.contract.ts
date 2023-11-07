@@ -37,8 +37,17 @@ export class AllowContract extends Contract {
         requireAuth(this.contract)
 
         // Save
-        const globals = new AllowGlobals(isPaused, isActorStrict, isTokenStrict, isTokensEnabled, isContractsEnabled, depositToken, rewardToken, percentage)
-        this.allowGlobalsSingleton.set(globals, this.contract);
+        const previousGlobals = this.allowGlobalsSingleton.get()
+        previousGlobals.isPaused = isPaused
+        previousGlobals.isActorStrict = isActorStrict
+        previousGlobals.isTokenStrict = isTokenStrict
+        previousGlobals.isTokensEnabled = isTokensEnabled
+        previousGlobals.isContractsEnabled = isContractsEnabled
+        previousGlobals.depositToken = depositToken
+        previousGlobals.rewardToken = rewardToken
+        previousGlobals.percentage = percentage
+
+        this.allowGlobalsSingleton.set(previousGlobals, this.contract);
     }
 
     /**

@@ -1,8 +1,8 @@
-import {ExtendedAsset, unpackActionData, Name, check, requireAuth, SAME_PAYER, TableStore, Asset, currentTimeSec} from '..'
-import {Transfer, sendTransferTokens, sendTransferToken} from '../token/token.inline';
+import {ExtendedAsset, unpackActionData, Name, check, requireAuth, SAME_PAYER, TableStore, Asset, currentTimeSec, print} from '..'
+import {Transfer, sendTransferTokens, sendTransferToken, getBalance} from '../token/token.inline';
 import {AllowContract} from '../allow';
-import {Balance} from './balance.tables';
-import {addTokens, findIndexOfExtendedAsset, skipDepositFrom, substractTokens, substractRewards} from './balance.utils';
+import {Balance, LP} from './balance.tables';
+import {addTokens, findIndexOfExtendedAsset, findIndexOfSymbolString,  skipDepositFrom, substractTokens, substractRewards} from './balance.utils';
 
 
 @contract
@@ -60,19 +60,18 @@ export class BalanceContract extends AllowContract {
         if (!this.balancesTable.isEmpty()) {
             let account = this.balancesTable.first()
             if(!account) return
+
             while(this.balancesTable.existsValue(account)){
-                try{
-                    if(!account) break;
-                    this.updateReward(account)
-                    this.distribute(account)
-                    account = this.balancesTable.next(account)
-                    if(!account) break;
-                }
-                catch (e) {
-                    console.log(e.message)
-                    continue;
-                }
+                if(!account) break;
+
+                this.updateReward(account)
+
+                this.distribute(account)
+
+                account = this.balancesTable.next(account)
+                if(!account) break;
             }
+
         }
     }
 
@@ -145,11 +144,13 @@ export class BalanceContract extends AllowContract {
         // Get account
         const account = this.balancesTable.requireGet(actor.N, `Account ${actor} not found`)
 
-        this.updateReward(account)
+
         // Substract Tokens
         substractTokens(account, tokens)
         // Delete table if no tokens
         // Update table if token found
+        this.updateReward(account)
+
         if (account.tokens.length == 0) {
             this.balancesTable.remove(account);
         } else {
@@ -170,13 +171,74 @@ export class BalanceContract extends AllowContract {
         if (!account) {
             account = new Balance(actor)
         }
-        this.updateReward(account)
+
         // Add Tokens
 
         addTokens(account, tokens)
 
+        this.updateReward(account)
         // Upsert table
         this.balancesTable.set(account, ramPayer)
+
+        this.updateLP()
+    }
+
+    updateLP(): void {
+        if (!this.balancesTable.isEmpty()) {
+
+            let account = this.balancesTable.first()
+            if(!account) return
+
+            while(this.balancesTable.existsValue(account)){
+                if(!account) break;
+
+                this.updateAccountLP(account)
+                this.balancesTable.set(account, this.contract)
+                account = this.balancesTable.next(account)
+                if(!account) break;
+            }
+        }
+    }
+
+    updateAccountLP(account: Balance) : void {
+
+
+        //----- Get the depositToken
+        const depositToken = this.allowGlobalsSingleton.get().depositToken
+        const depositTokenContract = depositToken.contract
+        const depositTokenSymbol = depositToken.sym
+
+        //----- Get the current Deposit Token Amount staked inside contract
+        const depositTokenTotalAmount = getBalance(depositTokenContract, this.contract, depositTokenSymbol)
+
+        if (depositTokenTotalAmount.amount == 0) return
+
+        const LPIndex = findIndexOfSymbolString(account.LastLP, depositTokenSymbol.getSymbolString())
+
+        //----- Get the token deposited of the account
+        let accountDepositTokenExtendedAsset = new ExtendedAsset(new Asset(0, depositTokenSymbol), depositTokenContract)
+        // Find index of token
+        const tokenIndex = findIndexOfExtendedAsset(account.tokens, accountDepositTokenExtendedAsset)
+
+        if (tokenIndex != -1) {
+            accountDepositTokenExtendedAsset = account.tokens[tokenIndex]
+        }
+
+
+        const newLP = div(accountDepositTokenExtendedAsset.quantity.amount as f32, depositTokenTotalAmount.amount as f32)
+
+
+        //----- update LP
+        if(LPIndex != -1){
+            account.LastLP[LPIndex].value = newLP
+        } else {
+            account.LastLP.push(
+                new LP(depositTokenSymbol.getSymbolString(), newLP)
+            )
+        }
+
+
+
     }
 
     /**
@@ -186,7 +248,9 @@ export class BalanceContract extends AllowContract {
 
     updateReward(account: Balance): void {
 
+
         let newRewardExtendedAsset = this.calculateAvailableRewards(account)
+
         //----- Update the Rewards
         const rewardIndex = findIndexOfExtendedAsset(account.rewards, newRewardExtendedAsset)
 
@@ -197,49 +261,64 @@ export class BalanceContract extends AllowContract {
             account.rewards[rewardIndex] = ExtendedAsset.add(account.rewards[rewardIndex], newRewardExtendedAsset)
             //----- Update the last time
         }
+
         account.LastUpdated = currentTimeSec()
     }
 
     calculateAvailableRewards(account: Balance) : ExtendedAsset {
 
+        //----- Get the rewardToken
+        const rewardToken = this.allowGlobalsSingleton.get().rewardToken
+        const rewardTokenContract = rewardToken.contract
+        const rewardTokenSymbol = rewardToken.sym
+
+        //----- Get the current Reward Token Amount staked inside contract
+        const rewardTokenTotalAmount = getBalance(rewardTokenContract, this.contract, rewardTokenSymbol)
+        
         //----- Get the depositToken
         const depositToken = this.allowGlobalsSingleton.get().depositToken
-        const depositTokenContract = depositToken.contract
         const depositTokenSymbol = depositToken.sym
 
         //----- Get the last Updated Time
         let timeDiffInSec = sub(currentTimeSec(), account.LastUpdated) as f32
         // let timeDiffInSec = f32(90000)
-        const rewardPercentageDurationPerToken = mul(div(timeDiffInSec, <f32>86400), this.allowGlobalsSingleton.get().percentage)
-        //----- Get the token deposited of the account
-        let accountDepositTokenExtendedAsset = new ExtendedAsset(new Asset(0, depositTokenSymbol), depositTokenContract)
-        // Find index of token
-        const tokenIndex = findIndexOfExtendedAsset(account.tokens, accountDepositTokenExtendedAsset)
+        const RewardTokenPercentageAsPerTime = mul(div(timeDiffInSec, <f32>86400), this.allowGlobalsSingleton.get().percentage)
 
-        if (tokenIndex != -1) {
-            accountDepositTokenExtendedAsset = account.tokens[tokenIndex]
+        let LPForCurrentDepositoken = 0 as f32
+        const LPIndex = findIndexOfSymbolString(account.LastLP, depositTokenSymbol.getSymbolString())
+
+        if(LPIndex != -1){
+            LPForCurrentDepositoken = account.LastLP[LPIndex].value
         }
 
-        //----- Get the rewardToken
-        const rewardToken = this.allowGlobalsSingleton.get().rewardToken
-        const rewardTokenContract = rewardToken.contract
-        const rewardTokenSymbol = rewardToken.sym
-        const decimalDifference = accountDepositTokenExtendedAsset.quantity.symbol.precision() - rewardTokenSymbol.precision()
+        const newAvailableRewardsForAllUsers = mul( rewardTokenTotalAmount.amount as f32,
+            RewardTokenPercentageAsPerTime
+        )
 
+        const newAvailableRewards = mul (newAvailableRewardsForAllUsers , LPForCurrentDepositoken)
 
-        const newAvailableRewards =mul( div(accountDepositTokenExtendedAsset.quantity.amount,
-            Math.pow(10, decimalDifference) as i64) as f32,
-            rewardPercentageDurationPerToken
-        ) as i64
-
-        //----- Calculate new reward of the deposited token
+        //----- Calculate new reward
         return new ExtendedAsset(
             new Asset(
-                newAvailableRewards,
+                newAvailableRewards as i64,
                 rewardTokenSymbol
             ),
             rewardTokenContract
         )
+    }
+
+    calculateTotalRewards(reward: ExtendedAsset):void {
+        //----- Get the rewardToken
+        const globalSingleton = this.allowGlobalsSingleton.get()
+
+        const rewardIndex = findIndexOfExtendedAsset(globalSingleton.totalRewards, reward)
+        if(rewardIndex != -1 ){
+            globalSingleton.totalRewards[rewardIndex] = ExtendedAsset.add(globalSingleton.totalRewards[rewardIndex], reward)
+        } else{
+            globalSingleton.totalRewards.push(reward)
+        }
+
+        this.allowGlobalsSingleton.set(globalSingleton, this.contract)
     }
 
     /**
@@ -268,6 +347,7 @@ export class BalanceContract extends AllowContract {
             substractRewards(account, [account.rewards[rewardIndex]])
             this.balancesTable.update(account, this.contract)
             sendTransferToken(rewardBalance.contract, this.contract, account.account, rewardBalance.quantity, "Reward")
+            this.calculateTotalRewards(rewardBalance)
         }
     }
 }
