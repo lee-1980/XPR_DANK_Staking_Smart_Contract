@@ -47,8 +47,8 @@ export class BalanceContract extends AllowContract {
     /**
      * Distribute all accounts' reward tokens and set reward to zero
      */
-    @action("transreward")
-    transreward(): void {
+    @action("rewardtoken")
+    rewardtoken(): void {
         // Authorization
         requireAuth(this.contract)
 
@@ -94,7 +94,7 @@ export class BalanceContract extends AllowContract {
         this.substractBalance(actor, tokens)
 
         // Inline transfer Tokens from contract to actor
-        this.withdrawAdmin(actor, tokens, "withdraw")
+        this.withdrawAdmin(actor, tokens, "Unstake")
     }
 
     // @action("viewareward")
@@ -131,7 +131,7 @@ export class BalanceContract extends AllowContract {
         // Not a public action, so only contract can call
 
         // Inline transfer Tokens from contract to actor
-        sendTransferTokens(this.contract, actor, tokens, "Reward")
+        sendTransferTokens(this.contract, actor, tokens, "Unstake")
     }
 
     /**
